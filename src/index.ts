@@ -1,4 +1,4 @@
-import { Schema, PopulateOptions, PipelineStage, Model } from "mongoose";
+import {Schema, PopulateOptions, PipelineStage, Model, QueryOptions} from 'mongoose';
 import { generateAggregatePipeline, generateCursorQuery, generateSort } from "./query";
 import { prepareResponse } from "./response";
 import { IPaginateOptions, IPaginateResult, VerboseMode } from "./types";
@@ -15,7 +15,7 @@ export interface IPluginOptions {
  */
 export default function (schema: Schema, pluginOptions?: IPluginOptions) {
 
-    function createFindPromise(mongoObject: any, options: IPaginateOptions, _query?: Object, _projection?: Object) {
+    function createFindPromise<T>(mongoObject: any, options: IPaginateOptions, _query?: Object, _projection?: Object, _options?: QueryOptions<T> | null | undefined, ) {
         // Determine sort
         const sort = generateSort(options);
 
@@ -29,7 +29,7 @@ export default function (schema: Schema, pluginOptions?: IPluginOptions) {
         const query = { $and: [generateCursorQuery(options), _query || {}] };
 
         // Request one extra result to check for a next/previous
-        const promise = mongoObject.find(query, _projection).sort(sort).limit(unlimited ? 0 : options.limit + 1);
+        const promise = mongoObject.find(query, _projection, _options).sort(sort).limit(unlimited ? 0 : options.limit + 1);
 
         return promise;
     }
@@ -39,11 +39,12 @@ export default function (schema: Schema, pluginOptions?: IPluginOptions) {
      * @param {IPaginateOptions} options the pagination options
      * @param {Object} [_query] the mongo query
      * @param {Object} [_projection] the mongo projection
+     * @param _options
      * @param {string | PopulateOptions | (string | PopulateOptions)[]} [_populate] the mongo populate
      */
-    async function findPaged<T>(options: IPaginateOptions, _query?: Object, _projection?: Object, _populate?: string | PopulateOptions | (string | PopulateOptions)[]): Promise<IPaginateResult<T>> {
+    async function findPaged<T>(options: IPaginateOptions, _query?: Object, _projection?: Object, _options?: QueryOptions<T> | null | undefined, _populate?: string | PopulateOptions | (string | PopulateOptions)[]): Promise<IPaginateResult<T>> {
         // Find and populate docs
-        const docs = await createFindPromise(this, options, _query, _projection).populate(_populate || []);
+        const docs = await createFindPromise<T>(this, options, _query, _projection, _options).populate(_populate || []);
 
         if (pluginOptions && pluginOptions.dontReturnTotalDocs) {
             return prepareResponse<T>(docs, options);
@@ -59,9 +60,10 @@ export default function (schema: Schema, pluginOptions?: IPluginOptions) {
      * @param {VerboseMode} verbose the verbosity mode for explain()
      * @param {Object} [_query] the mongo query
      * @param {Object} [_projection] the mongo projection
+     * @param _options
      */
-    async function findPagedExplain(options: IPaginateOptions,  verbose?: VerboseMode, _query?: Object, _projection?: Object): Promise<any> {
-        return await createFindPromise(this, options, _query, _projection).explain(verbose);
+    async function findPagedExplain<T>(options: IPaginateOptions,  verbose?: VerboseMode, _query?: Object, _projection?: Object, _options?: QueryOptions<T> | null | undefined, ): Promise<any> {
+        return await createFindPromise(this, options, _query, _projection, _options).explain(verbose);
     }
 
     function createAggregatePromise<T>(
@@ -76,20 +78,20 @@ export default function (schema: Schema, pluginOptions?: IPluginOptions) {
         const useDefaultLimit = isNaN(options.limit) || options.limit < 0 || options.limit === 0 && pluginOptions && pluginOptions.dontAllowUnlimitedResults;
         const unlimited = options.limit === 0 && (!pluginOptions || !pluginOptions.dontAllowUnlimitedResults);
         options.limit = useDefaultLimit ? defaultLimit : options.limit;
-    
+
         // Apply pagination to the pipeline
         const paginatedPipeline = [...pipeline, ...generateAggregatePipeline(options), { $sort: sort as any }];
 
         if (!unlimited) {
             paginatedPipeline.push({ $limit: options.limit + 1 });
         }
-    
+
         // Execute the aggregate query
         const cursor = mongoCollection.aggregate<T>(paginatedPipeline);
-    
+
         return cursor;
     }
-    
+
     async function aggregatePaged<T>(
         options: IPaginateOptions,
         pipeline: PipelineStage[],
@@ -101,7 +103,7 @@ export default function (schema: Schema, pluginOptions?: IPluginOptions) {
         const docs = await cursor.exec();
 
         // Count total documents (if needed)
-        let totalDocs = 0;    
+        let totalDocs = 0;
         if (pluginOptions && pluginOptions.dontReturnTotalDocs) {
             return prepareResponse<T>(docs, options);
         } else {

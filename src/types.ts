@@ -1,5 +1,5 @@
-import { Model, PipelineStage, Query } from "mongoose";
-import { DocumentType } from "@typegoose/typegoose";
+import type { Model, PipelineStage, Query, QueryOptions } from "mongoose";
+import type { DocumentType } from "@typegoose/typegoose";
 
 /**
  * The pagination options that can be passed.
@@ -37,13 +37,15 @@ export interface IPaginateModel<T> extends Model<DocumentType<T>, {}> {
         options: IPaginateOptions,
         query?: Object,
         projection?: Object,
+        _options?: QueryOptions<T> | null | undefined,
         _populate?: (Object | string)[]
     ): Query<IPaginateResult<DocumentType<T>>, DocumentType<T>>;
     findPagedExplain(
         options: IPaginateOptions,
         verbose?: VerboseMode,
         _query?: Object,
-        _projection?: Object
+        _projection?: Object,
+        _options?: QueryOptions<T> | null | undefined,
     ): Promise<any>;
     aggregatePaged(
         options: IPaginateOptions,
