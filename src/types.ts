@@ -49,7 +49,8 @@ export interface IPaginateModel<T> extends Model<DocumentType<T>, {}> {
     ): Promise<any>;
     aggregatePaged(
         options: IPaginateOptions,
-        pipeline: PipelineStage[],
+        pipelineBefore: PipelineStage[],
+        pipelineAfter?: PipelineStage[],
     ): Query<IPaginateResult<DocumentType<T>>, DocumentType<T>>;
 }
 
